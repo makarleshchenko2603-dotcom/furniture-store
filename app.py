@@ -37,6 +37,23 @@ def init_db():
         conn.commit()
 
 
+ADMIN_LOGIN    = os.environ.get('ADMIN_LOGIN', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'forma2024')
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or auth.username != ADMIN_LOGIN or auth.password != ADMIN_PASSWORD:
+            return Response(
+                'Доступ запрещён',
+                401,
+                {'WWW-Authenticate': 'Basic realm="FORMA Admin"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
+
+
 @app.route('/')
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
@@ -152,22 +169,6 @@ def admin_orders():
 </body>
 </html>'''
 
-
-ADMIN_LOGIN    = os.environ.get('ADMIN_LOGIN', 'admin')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'forma2024')
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or auth.username != ADMIN_LOGIN or auth.password != ADMIN_PASSWORD:
-            return Response(
-                'Доступ запрещён',
-                401,
-                {'WWW-Authenticate': 'Basic realm="FORMA Admin"'}
-            )
-        return f(*args, **kwargs)
-    return decorated
 
 init_db()
 
