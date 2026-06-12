@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import os
 import sqlite3
@@ -96,6 +98,34 @@ def create_order():
     return jsonify({'order_number': order_number, 'created_at': created_at}), 201
 
 
+@app.route('/admin/orders/export')
+@require_auth
+def export_orders():
+    with get_db() as conn:
+        rows = conn.execute('SELECT * FROM orders ORDER BY id DESC').fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Номер заказа', 'Дата', 'Имя', 'Фамилия', 'Телефон',
+                     'Email', 'Доставка', 'Адрес', 'Комментарий', 'Товары', 'Сумма'])
+    for row in rows:
+        items = json.loads(row['items'] or '[]')
+        items_str = '; '.join(f"{i['name']} x{i['qty']}" for i in items)
+        delivery_label = 'Курьер' if row['delivery'] == 'courier' else 'Самовывоз'
+        writer.writerow([
+            row['order_number'], row['created_at'], row['name'], row['surname'],
+            row['phone'], row['email'], delivery_label, row['address'] or '',
+            row['comment'] or '', items_str, row['total']
+        ])
+
+    csv_bytes = '﻿' + output.getvalue()  # BOM для корректного открытия в Excel
+    return Response(
+        csv_bytes.encode('utf-8'),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=orders.csv'}
+    )
+
+
 @app.route('/admin/orders')
 @require_auth
 def admin_orders():
@@ -148,7 +178,10 @@ def admin_orders():
 </head>
 <body>
   <div class="logo">FORMA</div>
-  <h1>Заказы</h1>
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+    <h1>Заказы</h1>
+    <a href="/admin/orders/export" style="background:#c8a97e;color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">⬇ Скачать CSV</a>
+  </div>
   <p class="subtitle">Всего: {count}</p>
   <table>
     <thead>
