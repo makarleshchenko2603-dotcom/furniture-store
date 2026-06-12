@@ -2,7 +2,8 @@ import json
 import os
 import sqlite3
 from datetime import datetime
-from flask import Flask, jsonify, request, send_from_directory
+from functools import wraps
+from flask import Flask, jsonify, request, send_from_directory, Response
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -79,6 +80,7 @@ def create_order():
 
 
 @app.route('/admin/orders')
+@require_auth
 def admin_orders():
     with get_db() as conn:
         rows = conn.execute('SELECT * FROM orders ORDER BY id DESC').fetchall()
@@ -150,6 +152,22 @@ def admin_orders():
 </body>
 </html>'''
 
+
+ADMIN_LOGIN    = os.environ.get('ADMIN_LOGIN', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'forma2024')
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or auth.username != ADMIN_LOGIN or auth.password != ADMIN_PASSWORD:
+            return Response(
+                'Доступ запрещён',
+                401,
+                {'WWW-Authenticate': 'Basic realm="FORMA Admin"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
 
 init_db()
 
